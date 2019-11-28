@@ -1,0 +1,76 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: "AWS::Serverless-2016-10-31"
+Description: "testing"
+Parameters:
+  SourceBucket:
+    Type: String
+  DestinationBucket:
+    Type: String
+  DataBucket:
+    Type: String
+Resources:
+  bucket1:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref SourceBucket
+      NotificationConfiguration:
+        LambdaConfigurations:
+            - Event: 's3:ObjectCreated:*'
+              Function: !GetAtt LambdaFunction.Arn
+  BucketPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref LambdaFunction
+      Principal: s3.amazonaws.com
+      SourceArn: !Sub arn:aws:s3:::${SourceBucket}
+  bucket2:
+    Type: AWS::S3::Bucket
+    Properties:
+          BucketName: !Ref DestinationBucket
+  LambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: lambdarole-week1
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+        Version: 2012-10-17
+      Path: /
+      Policies:
+        - PolicyName: S3Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                - lambda:InvokeFunction
+                Resource: '*'
+
+              - Effect: Allow
+                Action:
+                - s3:GetObject
+                Resource: !Sub arn:aws:s3:::${SourceBucket}/*
+
+              - Effect: Allow
+                Action:
+                - s3:PutObject
+                Resource: !Sub arn:aws:s3:::${DestinationBucket}/*
+  LambdaFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda_function.handler
+      Runtime:  python3.8
+      CodeUri: 's3://data-shwet/lambda_function.zip'
+      Role: !GetAtt LambdaRole.Arn
+      events:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            enabled: true
+            Input: '{ "warmer":"true","concurrency":3 }'
